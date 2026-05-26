@@ -1,0 +1,261 @@
+<!DOCTYPE html> 
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GREEN-API Test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 22px;
+        }
+
+        .container {
+            display: flex;
+            gap: 30px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .left {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .right {
+            flex: 1;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        button {
+            width: 100%;
+            padding: 9px;
+            background: #fff;
+            border: 1px solid #aaa;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            color: #333;
+        }
+
+        button:hover {
+            background: #e8e8e8;
+        }
+
+        .section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .response-label {
+            font-style: italic;
+            color: #555;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        #response {
+            width: 100%;
+            height: 100%;
+            min-height: 450px;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: monospace;
+            background: #fafafa;
+            resize: none;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>GREEN-API</h1>
+
+    <div class="container">
+        <div class="left">
+            <!-- Credentials -->
+            <div class="section">
+                <input type="text" id="idInstance" placeholder="idInstance">
+                <input type="text" id="apiToken" placeholder="ApiTokenInstance">
+            </div>
+
+            <!-- getSettings -->
+            <div class="section">
+                <button onclick="getSettings()">getSettings</button>
+            </div>
+
+            <!-- getStateInstance -->
+            <div class="section">
+                <button onclick="getStateInstance()">getStateInstance</button>
+            </div>
+
+            <!-- sendMessage -->
+            <div class="section">
+                <input type="text" id="sendMsgPhone" placeholder="7777123456789">
+                <textarea id="sendMsgText" placeholder="Hello World!"></textarea>
+                <button onclick="sendMessage()">sendMessage</button>
+            </div>
+
+            <!-- sendFileByUrl -->
+            <div class="section">
+                <input type="text" id="sendFilePhone" placeholder="7777123456789">
+                <input type="text" id="sendFileUrl" placeholder="https://my.site.com/img/horse.png">
+                <button onclick="sendFileByUrl()">sendFileByUrl</button>
+            </div>
+        </div>
+
+        <div class="right">
+            <div class="response-label">Ответ:</div>
+            <textarea id="response" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        function getBase() {
+            const id = document.getElementById('idInstance').value.trim();
+            const token = document.getElementById('apiToken').value.trim();
+            return { id, token, url: `https://api.green-api.com/waInstance${id}` };
+        }
+
+        function showResponse(data) {
+            document.getElementById('response').value = JSON.stringify(data, null, 2);
+        }
+
+        function showError(err) {
+            document.getElementById('response').value = 'Ошибка: ' + err.message;
+        }
+
+        function showLoading() {
+            document.getElementById('response').value = 'Загрузка...';
+        }
+
+        function checkCreds(base) {
+            if (!base.id || !base.token) {
+                showError({ message: 'Заполните idInstance и ApiTokenInstance' });
+                return false;
+            }
+            return true;
+        }
+
+        function normalizePhone(phone) {
+            return phone.replace(/\D/g, '');
+        }
+
+        async function callApi(path, options = {}) {
+            try {
+                const res = await fetch(path, options);
+                let body;
+                try {
+                    body = await res.json();
+                } catch {
+                    body = { raw: await res.text().catch(() => '') };
+                }
+                if (!res.ok) {
+                    showResponse({ status: res.status, ...body });
+                    return;
+                }
+                showResponse(body);
+            } catch (err) {
+                showError(err);
+            }
+        }
+
+        async function getSettings() {
+            const base = getBase();
+            if (!checkCreds(base)) return;
+            showLoading();
+            await callApi(`${base.url}/getSettings/${base.token}`);
+        }
+
+        async function getStateInstance() {
+            const base = getBase();
+            if (!checkCreds(base)) return;
+            showLoading();
+            await callApi(`${base.url}/getStateInstance/${base.token}`);
+        }
+
+        async function sendMessage() {
+            const base = getBase();
+            if (!checkCreds(base)) return;
+            const phone = normalizePhone(document.getElementById('sendMsgPhone').value);
+            const message = document.getElementById('sendMsgText').value.trim();
+            if (!phone || !message) {
+                showError({ message: 'Заполните номер телефона и текст сообщения' });
+                return;
+            }
+            showLoading();
+            await callApi(`${base.url}/sendMessage/${base.token}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatId: `${phone}@c.us`, message })
+            });
+        }
+
+        async function sendFileByUrl() {
+            const base = getBase();
+            if (!checkCreds(base)) return;
+            const phone = normalizePhone(document.getElementById('sendFilePhone').value);
+            const fileUrl = document.getElementById('sendFileUrl').value.trim();
+            if (!phone || !fileUrl) {
+                showError({ message: 'Заполните номер телефона и URL файла' });
+                return;
+            }
+            let fileName = 'file';
+            try {
+                const parsed = new URL(fileUrl);
+                fileName = parsed.pathname.split('/').pop() || 'file';
+            } catch {
+                showError({ message: 'Некорректный URL файла' });
+                return;
+            }
+            showLoading();
+            await callApi(`${base.url}/sendFileByUrl/${base.token}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chatId: `${phone}@c.us`,
+                    urlFile: fileUrl,
+                    fileName
+                })
+            });
+        }
+    </script>
+</body>
+</html>
